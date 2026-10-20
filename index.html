@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paumil's Confidential PDF Redaction Tool</title>
+<meta name="description" content="Offline, client-side PDF redaction for confidential Indian accounting, tax, audit and legal documents.">
+<style>
+  :root{
+    --bg:#EEF1F5;
+    --panel:#FFFFFF;
+    --ink:#16233A;
+    --ink-soft:#4A5568;
+    --ink-faint:#8592A6;
+    --line:#D7DCE4;
+    --line-soft:#E6E9EF;
+    --primary:#1F3A5F;
+    --primary-hover:#16304F;
+    --primary-ink:#FFFFFF;
+    --accent:#9C6B30;
+    --danger:#A63232;
+    --danger-hover:#8C2A2A;
+    --success:#2E6B44;
+    --success-bg:#E9F3EC;
+    --warn-bg:#FFF6E5;
+    --warn-border:#E4B565;
+    --warn-ink:#7A5414;
+    --focus:#3A6EA5;
+    --radius:6px;
+    --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#11151C; --panel:#1A212C; --ink:#E7ECF3; --ink-soft:#AAB4C4; --ink-faint:#6E7A8C;
+      --line:#2B3442; --line-soft:#232C39; --primary:#3A6EA5; --primary-hover:#4C81B8;
+      --success-bg:#173225; --warn-bg:#2E260F; --warn-border:#6B5322; --warn-ink:#E8C77E;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+    font-size:14.5px; line-height:1.5;
+  }
+  h1,h2,h3,h4{ font-family:var(--serif); font-weight:600; margin:0; color:var(--ink); }
+  button, input, select, textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  a{ color:var(--primary); }
+  :focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+  .visually-hidden{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+  /* ---------- App shell ---------- */
+  #app{ display:flex; flex-direction:column; height:100vh; }
+
+  header.top{
+    display:flex; align-items:center; gap:14px; padding:10px 18px;
+    background:var(--primary); color:var(--primary-ink); border-bottom:3px solid var(--accent);
+    flex:0 0 auto;
+  }
+  header.top .mark{
+    width:34px;height:34px;border-radius:5px;background:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-family:var(--serif);
+    font-weight:700;font-size:17px;color:#20160A;flex:0 0 auto;
+  }
+  header.top .titles{ display:flex; flex-direction:column; line-height:1.2; }
+  header.top .titles h1{ font-size:17px; color:#fff; }
+  header.top .titles small{ color:#D9E2EF; font-size:11.5px; }
+  header.top .spacer{flex:1;}
+  header.top button.link-btn{
+    background:transparent;border:1px solid rgba(255,255,255,.35); color:#fff;
+    padding:6px 12px; border-radius:var(--radius); cursor:pointer;
+  }
+  header.top button.link-btn:hover{ background:rgba(255,255,255,.12); }
+
+  .layout{ flex:1; display:flex; min-height:0; }
+
+  /* ---------- Sidebar ---------- */
+  aside.sidebar{
+    width:300px; flex:0 0 auto; background:var(--panel); border-right:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .sidebar-tabs{ display:flex; border-bottom:1px solid var(--line); flex:0 0 auto;}
+  .sidebar-tabs button{
+    flex:1; padding:10px 8px; background:none; border:none; cursor:pointer;
+    color:var(--ink-soft); font-weight:600; border-bottom:2px solid transparent;
+  }
+  .sidebar-tabs button.active{ color:var(--primary); border-bottom-color:var(--primary); }
+  .sidebar-pane{ flex:1; overflow-y:auto; padding:12px; min-height:0; }
+  .sidebar-pane.hidden{ display:none; }
+
+  .cat-toolbar{ display:flex; gap:8px; margin-bottom:10px; }
+  .cat-toolbar button{
+    flex:1; padding:6px 8px; font-size:12.5px; border:1px solid var(--line); background:var(--bg);
+    border-radius:var(--radius); cursor:pointer; color:var(--ink-soft);
+  }
+  .cat-toolbar button:hover{ border-color:var(--primary); color:var(--primary); }
+
+  .cat-group-title{ font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); margin:14px 0 6px; }
+  .cat-item{
+    display:flex; align-items:flex-start; gap:8px; padding:6px 4px; border-radius:var(--radius); cursor:pointer;
+  }
+  .cat-item:hover{ background:var(--line-soft); }
+  .cat-item input[type=checkbox]{ margin-top:3px; width:15px;height:15px; accent-color:var(--primary); flex:0 0 auto; }
+  .cat-swatch{ width:10px;height:10px;border-radius:2px; margin-top:5px; flex:0 0 auto; }
+  .cat-label{ display:flex; flex-direction:column; }
+  .cat-label .name{ font-weight:500; }
+  .cat-label .hint{ font-size:11px; color:var(--ink-faint); }
+
+  .custom-field{ margin-top:10px; }
+  .custom-field label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:4px; }
+  .custom-field input[type=text]{
+    width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:var(--radius); background:var(--bg); color:var(--ink);
+  }
+  .ocr-toggle{
+    margin-top:16px; padding:10px; border:1px solid var(--line); border-radius:var(--radius); background:var(--bg);
+  }
+  .ocr-toggle label{ display:flex; gap:8px; align-items:flex-start; cursor:pointer; }
+  .ocr-toggle p{ margin:6px 0 0 23px; font-size:11.5px; color:var(--ink-faint); }
+
+  .thumb-list{ display:flex; flex-direction:column; gap:10px; }
+  .thumb{
+    border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; cursor:pointer; background:var(--bg);
+  }
+  .thumb.active{ border-color:var(--primary); box-shadow:0 0 0 2px rgba(31,58,95,.25); }
+  .thumb canvas{ display:block; width:100%; height:auto; }
+  .thumb .thumb-foot{ display:flex; justify-content:space-between; padding:4px 8px; font-size:11px; color:var(--ink-soft); }
+  .thumb .thumb-foot .count{ font-weight:600; color:var(--danger); }
+
+  /* ---------- Main viewer ---------- */
+  main.viewer{ flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+
+  .toolbar{
+    display:flex; align-items:center; gap:8px; padding:8px 14px; background:var(--panel);
+    border-bottom:1px solid var(--line); flex-wrap:wrap; flex:0 0 auto;
+  }
+  .toolbar .group{ display:flex; align-items:center; gap:4px; padding-right:10px; border-right:1px solid var(--line-soft); }
+  .toolbar .group:last-child{ border-right:none; }
+  .toolbar button{
+    background:var(--bg); border:1px solid var(--line); color:var(--ink); padding:6px 10px;
+    border-radius:var(--radius); cursor:pointer; display:flex; align-items:center; gap:6px; white-space:nowrap;
+  }
+  .toolbar button:hover:not(:disabled){ border-color:var(--primary); color:var(--primary); }
+  .toolbar button:disabled{ opacity:.4; cursor:not-allowed; }
+  .toolbar button.primary{ background:var(--primary); color:#fff; border-color:var(--primary); }
+  .toolbar button.primary:hover:not(:disabled){ background:var(--primary-hover); }
+  .toolbar button.danger{ background:var(--danger); color:#fff; border-color:var(--danger); }
+  .toolbar button.danger:hover:not(:disabled){ background:var(--danger-hover); }
+  .toolbar button.toggle.active{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .toolbar .pagejump{ width:46px; text-align:center; border:1px solid var(--line); border-radius:var(--radius); padding:6px 4px; background:var(--bg); color:var(--ink); }
+  .toolbar .zoomlabel{ min-width:44px; text-align:center; font-size:12.5px; color:var(--ink-soft); }
+  .spacer{ flex:1; }
+
+  .canvas-scroll{ flex:1; overflow:auto; background:#3B4450; padding:26px; }
+  @media (prefers-color-scheme: dark){ .canvas-scroll{ background:#05070A; } }
+  .page-wrap{ position:relative; margin:0 auto 26px; background:#fff; box-shadow:0 2px 14px rgba(0,0,0,.35); width:max-content; }
+  .page-wrap canvas.page-canvas{ display:block; }
+  .overlay{ position:absolute; inset:0; }
+  .overlay.manual-mode{ cursor:crosshair; }
+
+  .box{
+    position:absolute; border:1.5px solid; border-radius:2px; cursor:pointer;
+  }
+  .box.detected{ background:rgba(214,60,60,.22); border-color:rgba(150,30,30,.85); }
+  .box.detected.unselected{ background:rgba(140,140,140,.14); border-color:rgba(120,120,120,.55); }
+  .box.detected .tag{
+    position:absolute; top:-20px; left:-1.5px; background:var(--danger); color:#fff; font-size:10px;
+    padding:1px 5px; border-radius:3px; white-space:nowrap; pointer-events:none;
+  }
+  .box.detected.unselected .tag{ background:#6b6f76; }
+  .box.manual{ background:repeating-linear-gradient(45deg, rgba(0,0,0,.75), rgba(0,0,0,.75) 6px, rgba(0,0,0,.55) 6px, rgba(0,0,0,.55) 12px); border-color:#111; }
+  .box.manual .del{
+    position:absolute; top:-11px; right:-11px; width:20px;height:20px; border-radius:50%;
+    background:var(--danger); color:#fff; border:2px solid #fff; font-size:12px; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .box.manual .handle{
+    position:absolute; width:10px;height:10px; background:#fff; border:1.5px solid #111; border-radius:50%;
+  }
+  .box.manual .handle.nw{ top:-5px; left:-5px; cursor:nwse-resize; }
+  .box.manual .handle.ne{ top:-5px; right:-5px; cursor:nesw-resize; }
+  .box.manual .handle.sw{ bottom:-5px; left:-5px; cursor:nesw-resize; }
+  .box.manual .handle.se{ bottom:-5px; right:-5px; cursor:nwse-resize; }
+  .box.redacted{ background:#000 !important; border-color:#000 !important; }
+
+  .drop-zone{
+    margin:auto; max-width:560px; padding:46px 34px; text-align:center; background:var(--panel);
+    border:2px dashed var(--line); border-radius:10px; color:var(--ink-soft);
+  }
+  .drop-zone.dragover{ border-color:var(--primary); background:var(--line-soft); }
+  .drop-zone h2{ font-size:20px; margin-bottom:8px; }
+  .drop-zone p{ font-size:13px; margin:6px 0 18px; }
+  .drop-zone button{
+    background:var(--primary); color:#fff; border:none; padding:10px 20px; border-radius:var(--radius);
+    font-weight:600; cursor:pointer;
+  }
+  .drop-zone button:hover{ background:var(--primary-hover); }
+  .drop-zone .fine{ margin-top:16px; font-size:11.5px; color:var(--ink-faint); }
+
+  /* ---------- Right panel ---------- */
+  aside.rightpanel{
+    width:320px; flex:0 0 auto; background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .rp-tabs{ display:flex; border-bottom:1px solid var(--line); }
+  .rp-tabs button{ flex:1; padding:10px 6px; background:none; border:none; cursor:pointer; color:var(--ink-soft); font-weight:600; border-bottom:2px solid transparent; font-size:13px;}
+  .rp-tabs button.active{ color:var(--primary); border-bottom-color:var(--primary); }
+  .rp-pane{ flex:1; overflow-y:auto; padding:12px; min-height:0; }
+  .rp-pane.hidden{ display:none; }
+
+  .match-item{
+    border:1px solid var(--line); border-radius:var(--radius); padding:8px; margin-bottom:8px; cursor:pointer;
+  }
+  .match-item:hover{ border-color:var(--primary); }
+  .match-item.unselected{ opacity:.55; }
+  .match-item .row1{ display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  .match-item .cat{ font-weight:600; font-size:12.5px; }
+  .match-item .page{ font-size:11px; color:var(--ink-faint); }
+  .match-item .val{ font-family:var(--mono); font-size:12px; margin-top:4px; color:var(--ink-soft); word-break:break-all; }
+  .match-item .val.masked{ letter-spacing:1px; }
+
+  .empty-state{ text-align:center; color:var(--ink-faint); padding:30px 10px; font-size:13px; }
+
+  .audit-box{ border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-bottom:12px; background:var(--bg); }
+  .audit-box h3{ font-size:13px; margin-bottom:8px; }
+  .audit-row{ display:flex; justify-content:space-between; font-size:12.5px; padding:3px 0; border-bottom:1px dotted var(--line-soft); }
+  .audit-row:last-child{ border-bottom:none; }
+  .audit-row .n{ font-weight:700; }
+
+  .verify-ok{ background:var(--success-bg); border:1px solid var(--success); color:var(--success); padding:10px; border-radius:var(--radius); font-size:12.5px; margin-bottom:10px;}
+  .verify-warn{ background:var(--warn-bg); border:1px solid var(--warn-border); color:var(--warn-ink); padding:10px; border-radius:var(--radius); font-size:12.5px; margin-bottom:10px;}
+
+  footer.status{
+    flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:6px 14px; background:var(--primary);
+    color:#D9E2EF; font-size:11.5px; border-top:3px solid var(--accent);
+  }
+  footer.status .dot{ width:7px;height:7px;border-radius:50%; background:#7FBF8E; }
+  footer.status .dot.busy{ background:#E8C77E; animation:pulse 1s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+  /* Modal */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(10,14,20,.55); display:flex; align-items:center; justify-content:center;
+    z-index:100; padding:20px;
+  }
+  .modal-backdrop.hidden{ display:none; }
+  .modal{ background:var(--panel); max-width:640px; width:100%; max-height:86vh; overflow-y:auto; border-radius:8px; padding:24px; }
+  .modal h2{ font-size:19px; margin-bottom:12px; }
+  .modal h3{ font-size:14px; margin:16px 0 6px; }
+  .modal p, .modal li{ font-size:13px; color:var(--ink-soft); line-height:1.6; }
+  .modal ul{ padding-left:20px; margin:6px 0; }
+  .modal .modal-close{
+    margin-top:18px; background:var(--primary); color:#fff; border:none; padding:9px 18px; border-radius:var(--radius);
+    cursor:pointer; font-weight:600;
+  }
+
+  .toast-stack{ position:fixed; bottom:18px; right:18px; z-index:200; display:flex; flex-direction:column; gap:8px; max-width:360px;}
+  .toast{ background:var(--ink); color:#fff; padding:10px 14px; border-radius:var(--radius); font-size:12.5px; box-shadow:0 4px 14px rgba(0,0,0,.3); }
+  .toast.warn{ background:var(--warn-border); color:#2b2005; }
+  .toast.err{ background:var(--danger); }
+  .toast.ok{ background:var(--success); }
+
+  .loading-line{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft); padding:10px 4px; }
+  .spinner{ width:14px;height:14px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--primary); animation:spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  @media (max-width: 980px){
+    aside.sidebar{ width:230px; }
+    aside.rightpanel{ width:260px; }
+    body{ font-size:13.5px; }
+  }
+  @media (max-width: 760px){
+    .layout{ flex-direction:column; }
+    aside.sidebar, aside.rightpanel{ width:100%; max-height:220px; border:none; border-bottom:1px solid var(--line); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .dot.busy{ animation:none; } .spinner{ animation:none; border-top-color:var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <div class="mark" aria-hidden="true">R</div>
+    <div class="titles">
+      <h1>Paumil's Confidential PDF Redaction Tool</h1>
+      <small>Local, in-browser redaction for CA &amp; legal document workflows</small>
+    </div>
+    <div class="spacer"></div>
+    <button class="link-btn" id="btnPrivacy" type="button">Privacy &amp; scope notice</button>
+    <button class="link-btn" id="btnHelp" type="button">How this works</button>
+  </header>
+
+  <div class="layout">
+
+    <aside class="sidebar" aria-label="Detection settings and page thumbnails">
+      <div class="sidebar-tabs">
+        <button type="button" class="active" data-side-tab="detect">Select Data to Redact</button>
+        <button type="button" data-side-tab="pages">Pages</button>
+      </div>
+
+      <div class="sidebar-pane" id="paneDetect">
+        <div class="cat-toolbar">
+          <button type="button" id="btnSelectAll">Select all sensitive data</button>
+          <button type="button" id="btnClearAll">Clear all</button>
+        </div>
+        <div id="categoryList"></div>
+
+        <div class="custom-field">
+          <label for="customTerms">Other user-defined confidential information</label>
+          <input type="text" id="customTerms" placeholder="e.g. Acme Pvt Ltd, /INV-\d{5}/, client codename">
+          <p class="hint" style="font-size:11px;color:var(--ink-faint);margin-top:4px;">Comma-separated. Wrap in / / for a regular expression, otherwise matched as literal text (case-insensitive).</p>
+        </div>
+
+        <div class="ocr-toggle">
+          <label>
+            <input type="checkbox" id="ocrToggle">
+            <span>Also run OCR on scanned / image-only pages</span>
+          </label>
+          <p>Uses Tesseract.js, loaded on first use. Slower, and detects text visually rather than from the PDF's text layer &mdash; review OCR matches carefully.</p>
+        </div>
+      </div>
+
+      <div class="sidebar-pane hidden" id="panePages">
+        <div class="thumb-list" id="thumbList"></div>
+      </div>
+    </aside>
+
+    <main class="viewer">
+      <div class="toolbar" id="toolbar">
+        <div class="group">
+          <button type="button" id="btnOpen">Open PDF&hellip;</button>
+          <input type="file" id="fileInput" accept="application/pdf" class="visually-hidden">
+        </div>
+        <div class="group">
+          <button type="button" id="btnPrev" disabled title="Previous page">&larr;</button>
+          <input type="text" id="pageJump" class="pagejump" value="1" disabled aria-label="Page number">
+          <span id="pageCount" style="font-size:12.5px;color:var(--ink-soft);">/ 0</span>
+          <button type="button" id="btnNext" disabled title="Next page">&rarr;</button>
+        </div>
+        <div class="group">
+          <button type="button" id="btnZoomOut" disabled title="Zoom out">&minus;</button>
+          <span class="zoomlabel" id="zoomLabel">100%</span>
+          <button type="button" id="btnZoomIn" disabled title="Zoom in">+</button>
+          <button type="button" id="btnFitWidth" disabled title="Fit width">Fit</button>
+        </div>
+        <div class="group">
+          <button type="button" id="btnDetect" disabled class="primary">Scan document</button>
+        </div>
+        <div class="group">
+          <button type="button" id="btnManualMode" disabled class="toggle">Manual redaction mode</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="group">
+          <button type="button" id="btnRedactSelected" disabled class="danger">Redact selected</button>
+          <button type="button" id="btnRedactAll" disabled class="danger">Redact all detected</button>
+        </div>
+        <div class="group">
+          <button type="button" id="btnFinalize" disabled class="primary">Finalize, verify &amp; download</button>
+        </div>
+      </div>
+
+      <div class="canvas-scroll" id="canvasScroll">
+        <div class="drop-zone" id="dropZone">
+          <h2>Open a PDF to begin</h2>
+          <p>Drag and drop a file here, or choose one from your computer. Nothing leaves this browser tab &mdash; there is no upload, no server and no external AI call.</p>
+          <button type="button" id="btnOpen2">Choose PDF file</button>
+          <p class="fine">Works fully offline once the page and its scripts are loaded. Suited for Aadhaar, PAN, GSTIN, bank, audit and litigation documents handled by a CA office.</p>
+        </div>
+      </div>
+    </main>
+
+    <aside class="rightpanel" aria-label="Detected matches and audit summary">
+      <div class="rp-tabs">
+        <button type="button" class="active" data-rp-tab="matches">Review matches</button>
+        <button type="button" data-rp-tab="audit">Audit &amp; verify</button>
+      </div>
+      <div class="rp-pane" id="paneMatches">
+        <div class="empty-state" id="matchesEmpty">Scan the document to list detected matches here for review.</div>
+        <div id="matchList"></div>
+      </div>
+      <div class="rp-pane hidden" id="paneAudit">
+        <div class="empty-state" id="auditEmpty">Finalize the document to see a redaction audit summary and verification result.</div>
+        <div id="auditContent"></div>
+      </div>
+    </aside>
+
+  </div>
+
+  <footer class="status">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">Ready. No document loaded.</span>
+  </footer>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<div class="modal-backdrop hidden" id="privacyModal">
+  <div class="modal">
+    <h2>Privacy &amp; scope notice</h2>
+    <p>All PDF parsing, text detection, OCR, redaction and file generation in this tool run locally, inside your browser tab, on your own device. The document you open is never uploaded to a server, sent to any cloud storage, or transmitted to any AI or third-party service by this tool. Nothing about the document or the values it contains is written to disk, logged, or retained after you close or reload this page.</p>
+    <p>This tool is intended to help with data minimisation before sharing a document with an external party or AI system, and to support your office's confidentiality practices. It does <strong>not, by itself, guarantee compliance</strong> with the Digital Personal Data Protection Act, 2023, the Information Technology Act, 2000, applicable ICAI confidentiality requirements, client engagement terms, or any other law, rule, or professional obligation. Detection is pattern-based and best-effort: it can miss items it was not configured to find, misclassify content, or over- or under-detect in scanned or unusually formatted documents. You remain responsible for reviewing every match before relying on the redacted output.</p>
+    <h3>What "permanent" means here</h3>
+    <p>When you finalize a document, each page is flattened into a fresh image with the chosen areas painted opaque black before the page is rasterised &mdash; not a black box placed on top of live text. The output PDF is then rebuilt from these images only, so the original text layer, hidden/invisible text, any existing OCR text layer, embedded attachments, form fields, annotations and document metadata are not carried over into the new file. The trade-off is that the exported PDF is image-based rather than text-searchable.</p>
+    <h3>What this tool cannot promise</h3>
+    <ul>
+      <li>That every instance of sensitive data in the document has been found &mdash; especially free-text addresses, signatures, unlabelled ID numbers, or unusual formats.</li>
+      <li>That content you did not select for redaction is safe to share.</li>
+      <li>Legal, regulatory or professional-standards compliance of any kind.</li>
+    </ul>
+    <button type="button" class="modal-close" data-close-modal="privacyModal">Close</button>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="helpModal">
+  <div class="modal">
+    <h2>How this tool works</h2>
+    <h3>1. Open a document</h3>
+    <p>Drag a PDF in, or choose one from disk. Pages render as you view them; thumbnails appear in the Pages tab.</p>
+    <h3>2. Choose what to detect</h3>
+    <p>Tick the categories of sensitive data relevant to this document, or use "Select all sensitive data". Add your own terms or a custom regular expression under "Other". Enable OCR if the PDF contains scanned pages with no selectable text.</p>
+    <h3>3. Scan, review, and mark manual boxes</h3>
+    <p>"Scan document" highlights every match on the page it appears on. Click a highlight (or an entry in "Review matches") to include or exclude it. Switch on "Manual redaction mode" to draw your own boxes over signatures, logos, table cells, or anything a pattern can't catch &mdash; drag to draw, drag the handles to resize, drag the body to move, and use the &times; button to delete.</p>
+    <h3>4. Redact and finalize</h3>
+    <p>"Redact selected" or "Redact all detected" burns the chosen areas into the page images. "Finalize, verify &amp; download" rebuilds the whole PDF from flattened images, runs a verification pass that tries to extract text back out of the result, and gives you the file to download along with an audit summary.</p>
+    <button type="button" class="modal-close" data-close-modal="helpModal">Close</button>
+  </div>
+</div>
+
+<!-- ===================== Third-party libraries (client-side only; no data is sent to these origins) ===================== -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<!-- Tesseract.js is loaded on demand only if OCR is enabled, see loadTesseract() below -->
+
+<script>
+(function(){
+"use strict";
+
+/* ======================================================================
+   Small helpers
+   ====================================================================== */
+function $(sel, root){ return (root||document).querySelector(sel); }
+function $all(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
+function el(tag, attrs, children){
+  const n = document.createElement(tag);
+  if(attrs) for(const k in attrs){
+    if(k === 'class') n.className = attrs[k];
+    else if(k === 'text') n.textContent = attrs[k];
+    else if(k.startsWith('on') && typeof attrs[k] === 'function') n.addEventListener(k.slice(2), attrs[k]);
+    else n.setAttribute(k, attrs[k]);
+  }
+  (children||[]).forEach(c => n.appendChild(c));
+  return n;
+}
+function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+function toast(msg, kind){
+  const stack = $('#toastStack');
+  const t = el('div', {class:'toast' + (kind ? ' '+kind : '')});
+  t.textContent = msg;
+  stack.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),450); }, 4200);
+}
+function setStatus(text, busy){
+  $('#statusText').textContent = text;
+  $('#statusDot').classList.toggle('busy', !!busy);
+}
+
+/* ======================================================================
+   Category definitions (id, label, hint, colour, matcher)
+   Each matcher(lineText) returns array of {start,end,value} in lineText.
+   Matching is done per detected text-line (see buildPageLines) so that
+   keyword-anchored patterns (e.g. "Notice No: ...") work across the
+   short text fragments PDFs are often split into.
+   ====================================================================== */
+function luhnValid(digits){
+  let sum = 0, alt = false;
+  for(let i = digits.length - 1; i >= 0; i--){
+    let d = digits.charCodeAt(i) - 48;
+    if(d < 0 || d > 9) return false;
+    if(alt){ d *= 2; if(d > 9) d -= 9; }
+    sum += d; alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+
+function regexMatcher(re, group){
+  return function(line){
+    const out = [];
+    let m;
+    const r = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    while((m = r.exec(line))){
+      const val = (group && m[group] !== undefined) ? m[group] : m[0];
+      const start = group && m[group] !== undefined ? line.indexOf(m[group], m.index) : m.index;
+      out.push({ start: start, end: start + val.length, value: val });
+      if(m.index === r.lastIndex) r.lastIndex++;
+    }
+    return out;
+  };
+}
+
+const CATEGORIES = [
+  { id:'aadhaar', label:'Aadhaar Number', hint:'12-digit UID, spaced or plain', color:'#C0392B',
+    match: regexMatcher(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g) },
+  { id:'pan', label:'PAN', hint:'AAAAA9999A', color:'#8E44AD',
+    match: regexMatcher(/\b[A-Z]{5}[0-9]{4}[A-Z]\b/g) },
+  { id:'gstin', label:'GSTIN', hint:'15-character GST identification no.', color:'#2C3E92',
+    match: regexMatcher(/\b\d{2}[A-Z]{5}\d{4}[A-Z][A-Z0-9]Z[A-Z0-9]\b/g) },
+  { id:'tan', label:'TAN', hint:'AAAA99999A', color:'#1F6E8C',
+    match: regexMatcher(/\b[A-Z]{4}\d{5}[A-Z]\b/g) },
+  { id:'cin', label:'CIN', hint:'21-character company ID no.', color:'#0E7C61',
+    match: regexMatcher(/\b[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}\b/g) },
+  { id:'llpin', label:'LLPIN', hint:'LLP identification no., e.g. AAA-1234', color:'#2E8B57',
+    match: regexMatcher(/\b[A-Z]{3}-\d{4}\b/g) },
+  { id:'dindpin', label:'DIN/DPIN', hint:'Director ID, keyword-anchored 8-digit', color:'#556B2F',
+    match: regexMatcher(/\b(?:DIN|DPIN)\s*[:\-]?\s*(\d{8})\b/gi, 1) },
+  { id:'bank', label:'Bank Account Number', hint:'9\u201318 digit account number', color:'#B7791F',
+    match: regexMatcher(/\b\d{9,18}\b/g) },
+  { id:'ifsc', label:'IFSC Code', hint:'AAAA0999999', color:'#A0522D',
+    match: regexMatcher(/\b[A-Z]{4}0[A-Z0-9]{6}\b/g) },
+  { id:'card', label:'Credit/Debit Card Number', hint:'13\u201316 digits, Luhn-checked', color:'#D35400',
+    match: function(line){
+      const out = [];
+      const re = /\b(?:\d[ -]?){13,16}\b/g;
+      let m;
+      while((m = re.exec(line))){
+        const digitsOnly = m[0].replace(/[ -]/g,'');
+        if(digitsOnly.length >= 13 && digitsOnly.length <= 16 && luhnValid(digitsOnly)){
+          out.push({ start:m.index, end:m.index + m[0].length, value:m[0] });
+        }
+      }
+      return out;
+    }},
+  { id:'upi', label:'UPI ID', hint:'handle@bank (no dot in handle domain)', color:'#6A5ACD',
+    match: function(line){
+      const out = [];
+      const re = /\b[a-zA-Z0-9.\-_]{2,64}@([a-zA-Z]{2,64})\b/g;
+      let m;
+      while((m = re.exec(line))){
+        if(!m[1].includes('.')){
+          out.push({ start:m.index, end:m.index+m[0].length, value:m[0] });
+        }
+      }
+      return out;
+    }},
+  { id:'mobile', label:'Mobile/Telephone Number', hint:'10-digit Indian mobile, optional +91', color:'#C71585',
+    match: regexMatcher(/\b(?:\+?91[\-\s]?)?[6-9]\d{9}\b/g) },
+  { id:'email', label:'Email Address', hint:'name@domain.tld', color:'#3949AB',
+    match: regexMatcher(/\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b/g) },
+  { id:'address', label:'Residential/Office Address', hint:'heuristic: PIN code + address keyword', color:'#8D6E63',
+    match: function(line){
+      const hasPin = /\b\d{6}\b/.test(line);
+      const kw = /(road|street|nagar|colony|sector|village|district|taluka|p\.?o\.?\b|floor|building|society|layout|marg|chowk|lane|apartment|flat no|house no|regd\.?\s*office|registered office|address)/i;
+      if(hasPin && kw.test(line)){
+        return [{ start:0, end:line.length, value:line.trim() }];
+      }
+      return [];
+    }},
+  { id:'dob', label:'Date of Birth', hint:'keyword-anchored dd/mm/yyyy', color:'#00838F',
+    match: regexMatcher(/\b(?:DOB|Date\s+of\s+Birth)\s*[:\-]?\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/gi, 1) },
+  { id:'notice', label:'Notice Number', hint:'keyword-anchored notice/DIN reference', color:'#4E342E',
+    match: regexMatcher(/\b(?:Notice\s*(?:No\.?|Number)|DIN(?:\s*&\s*Notice\s*No\.?)?)\s*[:\-]?\s*([A-Z0-9\/\-]{6,25})/gi, 1) },
+  { id:'orderref', label:'Order/Reference Number', hint:'keyword-anchored order/ARN/F.No', color:'#37474F',
+    match: regexMatcher(/\b(?:Order\s*(?:No\.?|Number)|Reference\s*(?:No\.?|Number)|ARN|F\.?\s*No\.?)\s*[:\-]?\s*([A-Z0-9\/\-]{6,25})/gi, 1) },
+  { id:'passport', label:'Passport Number', hint:'1 letter + 7 digits', color:'#5D4037',
+    match: regexMatcher(/\b[A-Z][0-9]{7}\b/g) },
+  { id:'dl', label:'Driving Licence Number', hint:'state code + RTO + number (approx.)', color:'#795548',
+    match: regexMatcher(/\b[A-Z]{2}\d{2}[\s-]?\d{4,11}\b/g) },
+  { id:'partyid', label:'Employee/Customer/Vendor ID', hint:'keyword-anchored ID/code', color:'#455A64',
+    match: regexMatcher(/\b(?:Employee|Emp|Customer|Cust|Vendor)\s*(?:ID|No\.?|Code)\s*[:\-]?\s*([A-Z0-9\-]{3,20})/gi, 1) },
+  { id:'signature', label:'Signature', hint:'not auto-detected \u2014 use Manual mode', color:'#000000', manualOnly:true, match:function(){ return []; } },
+  { id:'qr', label:'QR Codes/Barcodes', hint:'QR codes detected visually; barcodes: use Manual mode', color:'#212121', imageScan:true, match:function(){ return []; } },
+  { id:'custom', label:'Other (user-defined, above)', hint:'from the field below', color:'#EF6C00', match:function(){ return []; } },
+];
+
+/* ======================================================================
+   App state
+   ====================================================================== */
+const state = {
+  pdfDoc: null,           // pdf.js document
+  pdfBytesOriginalName: '',
+  numPages: 0,
+  zoom: 1.0,
+  currentPage: 1,
+  pages: {},               // pageNum -> { viewport, textContent, lines, canvas, wrap, overlay, rendered:false }
+  matches: [],             // {id, page, category, rect:{x,y,w,h} in PDF pt space, value, selected}
+  manualBoxes: [],          // {id, page, rect:{x,y,w,h} in PDF pt space}
+  manualMode: false,
+  scanned: false,
+  redactedPageFlags: {},    // pageNum -> true once burned in
+  finalizedBytes: null,
+  auditLog: null,
+  tesseractLoaded: false,
+  activeCustomTerms: [],
+};
+
+let pdfjsLib = null;
+
+/* ======================================================================
+   Category UI
+   ====================================================================== */
+function buildCategoryList(){
+  const list = $('#categoryList');
+  list.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const item = el('label', {class:'cat-item'});
+    const cb = el('input', {type:'checkbox', 'data-cat':cat.id});
+    const sw = el('span', {class:'cat-swatch'});
+    sw.style.background = cat.color;
+    const labelWrap = el('span', {class:'cat-label'});
+    labelWrap.appendChild(el('span', {class:'name', text:cat.label}));
+    labelWrap.appendChild(el('span', {class:'hint', text:cat.hint}));
+    item.appendChild(cb);
+    item.appendChild(sw);
+    item.appendChild(labelWrap);
+    list.appendChild(item);
+  });
+}
+function getSelectedCategoryIds(){
+  return $all('#categoryList input[type=checkbox]:checked').map(cb => cb.getAttribute('data-cat'));
+}
+$('#btnSelectAll') && $('#btnSelectAll').addEventListener('click', () => {
+  $all('#categoryList input[type=checkbox]').forEach(cb => cb.checked = true);
+});
+document.addEventListener('DOMContentLoaded', () => {}); // no-op guard
+
+/* ======================================================================
+   Tabs (sidebar + right panel)
+   ====================================================================== */
+function wireTabs(tabSelector, paneMap){
+  $all(tabSelector).forEach(btn => {
+    btn.addEventListener('click', () => {
+      $all(tabSelector).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      Object.keys(paneMap).forEach(key => {
+        paneMap[key].classList.toggle('hidden', key !== btn.dataset.sideTab && key !== btn.dataset.rpTab);
+      });
+    });
+  });
+}
+
+/* ======================================================================
+   Modals
+   ====================================================================== */
+function openModal(id){ $('#'+id).classList.remove('hidden'); }
+function closeModal(id){ $('#'+id).classList.add('hidden'); }
+$all('[data-close-modal]').forEach(b => b.addEventListener('click', () => closeModal(b.dataset.closeModal)));
+$all('.modal-backdrop').forEach(bd => bd.addEventListener('click', (e) => { if(e.target === bd) bd.classList.add('hidden'); }));
+
+/* ======================================================================
+   PDF loading
+   ====================================================================== */
+async function loadPdfFromArrayBuffer(buf, name){
+  resetDocumentState();
+  setStatus('Parsing PDF\u2026', true);
+  try{
+    const loadingTask = pdfjsLib.getDocument({ data: buf });
+    state.pdfDoc = await loadingTask.promise;
+    state.numPages = state.pdfDoc.numPages;
+    state.pdfBytesOriginalName = name || 'document.pdf';
+    $('#dropZone').style.display = 'none';
+    $('#pageCount').textContent = '/ ' + state.numPages;
+    $('#pageJump').value = '1';
+    enableToolbar(true);
+    await buildThumbnails();
+    await renderPage(1);
+    setStatus(state.numPages + ' page(s) loaded from "' + state.pdfBytesOriginalName + '". Nothing has left this browser tab.', false);
+  }catch(err){
+    console.error(err);
+    toast('Could not open this PDF: ' + err.message, 'err');
+    setStatus('Failed to open PDF.', false);
+  }
+}
+
+function resetDocumentState(){
+  state.pdfDoc = null; state.numPages = 0; state.currentPage = 1; state.zoom = 1.0;
+  state.pages = {}; state.matches = []; state.manualBoxes = []; state.manualMode = false;
+  state.scanned = false; state.redactedPageFlags = {}; state.finalizedBytes = null; state.auditLog = null;
+  $('#thumbList').innerHTML = '';
+  $('#canvasScroll').querySelectorAll('.page-wrap').forEach(n => n.remove());
+  renderMatchList(); renderAuditPane();
+  $('#zoomLabel').textContent = '100%';
+}
+
+function enableToolbar(on){
+  ['btnPrev','btnNext','btnZoomOut','btnZoomIn','btnFitWidth','btnDetect','btnManualMode'].forEach(id=>{
+    $('#'+id).disabled = !on;
+  });
+  $('#pageJump').disabled = !on;
+}
+
+/* ======================================================================
+   Rendering a page (canvas + overlay div)
+   ====================================================================== */
+async function ensurePageEntry(num){
+  if(state.pages[num]) return state.pages[num];
+  const page = await state.pdfDoc.getPage(num);
+  const textContent = await page.getTextContent();
+  const baseViewport = page.getViewport({ scale: 1 });
+  const entry = { page, textContent, baseViewport, lines: null, canvas:null, wrap:null, overlay:null };
+  entry.lines = buildPageLines(textContent, baseViewport);
+  state.pages[num] = entry;
+  return entry;
+}
+
+// Group text items into lines using their baseline Y, preserving per-item char ranges for later rect mapping.
+function buildPageLines(textContent, baseViewport){
+  const items = textContent.items.map(it => {
+    const tx = pdfjsLib.Util.transform(baseViewport.transform, it.transform);
+    // tx = [a,b,c,d,e,f]; position of the glyph origin in viewport (top-down) space
+    const fontHeight = Math.hypot(tx[2], tx[3]) || Math.hypot(tx[0], tx[1]) || 10;
+    const x = tx[4];
+    const yTop = tx[5] - fontHeight; // approx top of glyph box in top-down coords
+    const w = it.width * Math.hypot(baseViewport.transform[0], baseViewport.transform[1]);
+    return { str: it.str, x, y: yTop, w: Math.max(w, 1), h: fontHeight * 1.15 };
+  }).filter(it => it.str.length > 0);
+
+  items.sort((a,b) => (a.y - b.y) || (a.x - b.x));
+
+  const lines = [];
+  const yTol = 3.2;
+  items.forEach(it => {
+    let line = lines.find(l => Math.abs(l.y - it.y) <= yTol);
+    if(!line){ line = { y: it.y, items: [] }; lines.push(line); }
+    line.items.push(it);
+  });
+  lines.forEach(line => line.items.sort((a,b) => a.x - b.x));
+
+  // Build line text + offset map for each line
+  lines.forEach(line => {
+    let text = '';
+    line.map = []; // { start, end, item }
+    line.items.forEach((it, idx) => {
+      if(idx > 0) text += ' ';
+      const start = text.length;
+      text += it.str;
+      line.map.push({ start, end: text.length, item: it });
+    });
+    line.text = text;
+  });
+  return lines;
+}
+
+function lineCharRangeToRect(line, start, end){
+  const covered = line.map.filter(m => m.end > start && m.start < end).map(m => m.item);
+  if(covered.length === 0) return null;
+  const x1 = Math.min(...covered.map(i => i.x));
+  const x2 = Math.max(...covered.map(i => i.x + i.w));
+  const y1 = Math.min(...covered.map(i => i.y));
+  const y2 = Math.max(...covered.map(i => i.y + i.h));
+  return { x:x1, y:y1, w:x2-x1, h:y2-y1 };
+}
+
+async function renderPage(num){
+  num = clamp(num, 1, state.numPages);
+  state.currentPage = num;
+  $('#pageJump').value = num;
+  const entry = await ensurePageEntry(num);
+  const viewport = entry.page.getViewport({ scale: state.zoom * 1.6 }); // 1.6 = internal render crispness factor
+
+  let wrap = entry.wrap;
+  if(!wrap){
+    wrap = el('div', {class:'page-wrap', 'data-page':num});
+    const canvas = el('canvas', {class:'page-canvas'});
+    const overlay = el('div', {class:'overlay'});
+    wrap.appendChild(canvas);
+    wrap.appendChild(overlay);
+    entry.wrap = wrap; entry.canvas = canvas; entry.overlay = overlay;
+    wireOverlayEvents(num, overlay);
+  }
+  const canvas = entry.canvas;
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
+  canvas.style.width = Math.floor(viewport.width / 1.6) + 'px';
+  canvas.style.height = Math.floor(viewport.height / 1.6) + 'px';
+  entry.overlay.style.width = canvas.style.width;
+  entry.overlay.style.height = canvas.style.height;
+  entry.displayScale = state.zoom; // ratio from PDF pt space to CSS px on screen
+
+  const ctx = canvas.getContext('2d');
+  await entry.page.render({ canvasContext: ctx, viewport }).promise;
+
+  const scroll = $('#canvasScroll');
+  if(!scroll.contains(wrap)){
+    scroll.innerHTML = '';
+    scroll.appendChild(wrap);
+  }
+  drawOverlayBoxes(num);
+  highlightThumb(num);
+}
+
+function ptToCss(entry, rect){
+  // rect is in base (scale=1) viewport pt space (top-down). Convert to on-screen CSS px using current zoom.
+  const s = state.zoom;
+  return { left: rect.x * s, top: rect.y * s, width: rect.w * s, height: rect.h * s };
+}
+function cssToPt(entry, css){
+  const s = state.zoom;
+  return { x: css.left / s, y: css.top / s, w: css.width / s, h: css.height / s };
+}
+
+function drawOverlayBoxes(num){
+  const entry = state.pages[num];
+  if(!entry) return;
+  entry.overlay.innerHTML = '';
+  entry.overlay.classList.toggle('manual-mode', state.manualMode);
+
+  state.matches.filter(m => m.page === num && !m.redacted).forEach(m => {
+    const c = ptToCss(entry, m.rect);
+    const box = el('div', {class:'box detected' + (m.selected ? '' : ' unselected')});
+    box.style.left = c.left+'px'; box.style.top = c.top+'px'; box.style.width = c.width+'px'; box.style.height = c.height+'px';
+    box.style.borderColor = m.selected ? (CATEGORIES.find(k=>k.id===m.category)||{}).color || '#a63232' : undefined;
+    const tag = el('span', {class:'tag', text: catLabel(m.category)});
+    box.appendChild(tag);
+    box.title = catLabel(m.category) + ': ' + m.value + ' \u2014 click to ' + (m.selected ? 'exclude' : 'include');
+    box.addEventListener('click', (e)=>{ e.stopPropagation(); m.selected = !m.selected; drawOverlayBoxes(num); renderMatchList(); });
+    entry.overlay.appendChild(box);
+  });
+
+  state.manualBoxes.filter(b => b.page === num).forEach(b => {
+    entry.overlay.appendChild(buildManualBoxEl(num, b));
+  });
+
+  // already-burned redacted areas (post redact-selected/all, pre-finalize) shown as solid black
+  state.matches.filter(m => m.page === num && m.redacted).forEach(m => {
+    const c = ptToCss(entry, m.rect);
+    const box = el('div', {class:'box redacted'});
+    box.style.left = c.left+'px'; box.style.top = c.top+'px'; box.style.width = c.width+'px'; box.style.height = c.height+'px';
+    entry.overlay.appendChild(box);
+  });
+}
+
+function catLabel(id){ const c = CATEGORIES.find(k=>k.id===id); return c ? c.label : id; }
+
+/* ---------- manual box element with drag / resize / delete ---------- */
+function buildManualBoxEl(pageNum, b){
+  const entry = state.pages[pageNum];
+  const c = ptToCss(entry, b.rect);
+  const box = el('div', {class:'box manual'});
+  box.style.left = c.left+'px'; box.style.top = c.top+'px'; box.style.width = c.width+'px'; box.style.height = c.height+'px';
+
+  const del = el('button', {class:'del', type:'button', 'aria-label':'Delete this box'});
+  del.textContent = '\u00d7';
+  del.addEventListener('click', (e)=>{ e.stopPropagation(); state.manualBoxes = state.manualBoxes.filter(x=>x.id!==b.id); drawOverlayBoxes(pageNum); });
+  box.appendChild(del);
+
+  ['nw','ne','sw','se'].forEach(corner => {
+    const h = el('div', {class:'handle '+corner});
+    h.addEventListener('mousedown', (e)=>{
+      e.stopPropagation(); e.preventDefault();
+      startResize(pageNum, b, corner, e);
+    });
+    box.appendChild(h);
+  });
+
+  box.addEventListener('mousedown', (e)=>{
+    if(e.target !== box) return; // ignore clicks on handles/delete
+    e.stopPropagation(); e.preventDefault();
+    startMove(pageNum, b, e);
+  });
+
+  return box;
+}
+
+function startMove(pageNum, b, downEvt){
+  const entry = state.pages[pageNum];
+  const startX = downEvt.clientX, startY = downEvt.clientY;
+  const orig = { ...b.rect };
+  function onMove(e){
+    const dx = (e.clientX - startX) / state.zoom;
+    const dy = (e.clientY - startY) / state.zoom;
+    b.rect = { x: orig.x + dx, y: orig.y + dy, w: orig.w, h: orig.h };
+    drawOverlayBoxes(pageNum);
+  }
+  function onUp(){ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function startResize(pageNum, b, corner, downEvt){
+  const startX = downEvt.clientX, startY = downEvt.clientY;
+  const orig = { ...b.rect };
+  function onMove(e){
+    const dx = (e.clientX - startX) / state.zoom;
+    const dy = (e.clientY - startY) / state.zoom;
+    let { x, y, w, h } = orig;
+    if(corner.includes('e')) w = orig.w + dx;
+    if(corner.includes('s')) h = orig.h + dy;
+    if(corner.includes('w')){ x = orig.x + dx; w = orig.w - dx; }
+    if(corner.includes('n')){ y = orig.y + dy; h = orig.h - dy; }
+    if(w < 6) w = 6; if(h < 6) h = 6;
+    b.rect = { x, y, w, h };
+    drawOverlayBoxes(pageNum);
+  }
+  function onUp(){ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+/* ---------- drawing new manual boxes ---------- */
+function wireOverlayEvents(pageNum, overlay){
+  let drawing = null;
+  overlay.addEventListener('mousedown', (e) => {
+    if(!state.manualMode) return;
+    if(e.target !== overlay) return;
+    const rect = overlay.getBoundingClientRect();
+    const startCss = { left: e.clientX - rect.left, top: e.clientY - rect.top };
+    const ghost = el('div', {class:'box manual'});
+    ghost.style.left = startCss.left+'px'; ghost.style.top = startCss.top+'px'; ghost.style.width='0px'; ghost.style.height='0px';
+    overlay.appendChild(ghost);
+    drawing = { startCss, ghost };
+    function onMove(ev){
+      const curLeft = ev.clientX - rect.left, curTop = ev.clientY - rect.top;
+      const left = Math.min(startCss.left, curLeft), top = Math.min(startCss.top, curTop);
+      const w = Math.abs(curLeft - startCss.left), h = Math.abs(curTop - startCss.top);
+      ghost.style.left = left+'px'; ghost.style.top = top+'px'; ghost.style.width = w+'px'; ghost.style.height = h+'px';
+    }
+    function onUp(ev){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      const finalLeft = parseFloat(ghost.style.left), finalTop = parseFloat(ghost.style.top);
+      const finalW = parseFloat(ghost.style.width), finalH = parseFloat(ghost.style.height);
+      ghost.remove();
+      if(finalW > 4 && finalH > 4){
+        const pt = cssToPt(state.pages[pageNum], { left:finalLeft, top:finalTop, width:finalW, height:finalH });
+        state.manualBoxes.push({ id: uid(), page: pageNum, rect: { x:pt.x, y:pt.y, w:pt.w, h:pt.h } });
+        drawOverlayBoxes(pageNum);
+      }
+      drawing = null;
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+/* ======================================================================
+   Thumbnails
+   ====================================================================== */
+async function buildThumbnails(){
+  const list = $('#thumbList');
+  list.innerHTML = '';
+  for(let n = 1; n <= state.numPages; n++){
+    const page = await state.pdfDoc.getPage(n);
+    const vp = page.getViewport({ scale: 0.22 });
+    const canvas = el('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    const thumb = el('div', {class:'thumb', 'data-page':n});
+    thumb.appendChild(canvas);
+    const foot = el('div', {class:'thumb-foot'});
+    foot.appendChild(el('span', {text:'Page ' + n}));
+    foot.appendChild(el('span', {class:'count', text:'', 'data-count-for':n}));
+    thumb.appendChild(foot);
+    thumb.addEventListener('click', () => renderPage(n));
+    list.appendChild(thumb);
+  }
+}
+function highlightThumb(num){
+  $all('.thumb').forEach(t => t.classList.toggle('active', parseInt(t.dataset.page,10) === num));
+}
+function updateThumbCounts(){
+  const counts = {};
+  state.matches.forEach(m => { if(m.selected && !m.redacted) counts[m.page] = (counts[m.page]||0) + 1; });
+  state.manualBoxes.forEach(b => { counts[b.page] = (counts[b.page]||0) + 1; });
+  $all('[data-count-for]').forEach(span => {
+    const p = parseInt(span.dataset.countFor, 10);
+    const n = counts[p] || 0;
+    span.textContent = n > 0 ? (n + ' marked') : '';
+  });
+}
+
+/* ======================================================================
+   Custom terms parsing
+   ====================================================================== */
+function parseCustomTerms(){
+  const raw = $('#customTerms').value.trim();
+  if(!raw) return [];
+  return raw.split(',').map(s => s.trim()).filter(Boolean).map(term => {
+    if(term.length > 1 && term.startsWith('/') && term.lastIndexOf('/') > 0){
+      const lastSlash = term.lastIndexOf('/');
+      const body = term.slice(1, lastSlash);
+      const flags = term.slice(lastSlash+1) || 'gi';
+      try{ return new RegExp(body, flags.includes('g') ? flags : flags+'g'); }
+      catch(e){ toast('Ignoring invalid custom regex: ' + term, 'warn'); return null; }
+    }
+    return new RegExp(escapeRegExp(term), 'gi');
+  }).filter(Boolean);
+}
+
+/* ======================================================================
+   Detection ("Scan document")
+   ====================================================================== */
+async function scanDocument(){
+  const selectedIds = getSelectedCategoryIds();
+  if(selectedIds.length === 0){
+    toast('Tick at least one category to detect first.', 'warn');
+    return;
+  }
+  state.matches = [];
+  const customPatterns = parseCustomTerms();
+  const useOcr = $('#ocrToggle').checked;
+  const activeCats = CATEGORIES.filter(c => selectedIds.includes(c.id) && !c.manualOnly && !c.imageScan);
+  const wantQr = selectedIds.includes('qr');
+  const wantCustom = selectedIds.includes('custom') && customPatterns.length > 0;
+  const wantSignatureNote = selectedIds.includes('signature');
+
+  setStatus('Scanning document\u2026', true);
+  $('#btnDetect').disabled = true;
+
+  let tesseractWorker = null;
+  if(useOcr){
+    try{ tesseractWorker = await loadTesseract(); }
+    catch(e){ toast('OCR library could not be loaded (needs an internet connection on first use). Continuing without OCR.', 'warn'); }
+  }
+
+  for(let n = 1; n <= state.numPages; n++){
+    setStatus('Scanning page ' + n + ' of ' + state.numPages + '\u2026', true);
+    const entry = await ensurePageEntry(n);
+
+    // 1) Text-layer based regex detection, line by line
+    entry.lines.forEach(line => {
+      activeCats.forEach(cat => {
+        const found = cat.match(line.text);
+        found.forEach(f => {
+          const rect = lineCharRangeToRect(line, f.start, f.end);
+          if(rect) addMatch(n, cat.id, rect, f.value);
+        });
+      });
+      if(wantCustom){
+        customPatterns.forEach(re => {
+          let m; const r = new RegExp(re.source, re.flags);
+          while((m = r.exec(line.text))){
+            const rect = lineCharRangeToRect(line, m.index, m.index + m[0].length);
+            if(rect) addMatch(n, 'custom', rect, m[0]);
+            if(m.index === r.lastIndex) r.lastIndex++;
+          }
+        });
+      }
+    });
+
+    // 2) QR code detection via jsQR on the rendered raster of the page
+    if(wantQr && typeof jsQR === 'function'){
+      try{
+        const scale = 2.2;
+        const vp = entry.page.getViewport({ scale });
+        const off = document.createElement('canvas');
+        off.width = vp.width; off.height = vp.height;
+        await entry.page.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
+        const img = off.getContext('2d').getImageData(0,0,off.width,off.height);
+        const code = jsQR(img.data, off.width, off.height);
+        if(code && code.location){
+          const loc = code.location;
+          const xs = [loc.topLeftCorner.x, loc.topRightCorner.x, loc.bottomLeftCorner.x, loc.bottomRightCorner.x];
+          const ys = [loc.topLeftCorner.y, loc.topRightCorner.y, loc.bottomLeftCorner.y, loc.bottomRightCorner.y];
+          const rectPx = { x:Math.min(...xs), y:Math.min(...ys), w:Math.max(...xs)-Math.min(...xs), h:Math.max(...ys)-Math.min(...ys) };
+          const rectPt = { x: rectPx.x/scale, y: rectPx.y/scale, w: rectPx.w/scale, h: rectPx.h/scale };
+          addMatch(n, 'qr', rectPt, '[QR code]');
+        }
+      }catch(e){ /* non-fatal */ }
+    }
+
+    // 3) OCR pass for pages with little/no extractable text
+    if(useOcr && tesseractWorker){
+      const textDensity = entry.lines.reduce((a,l)=>a+l.text.length,0);
+      if(textDensity < 20){
+        try{
+          const scale = 2.4;
+          const vp = entry.page.getViewport({ scale });
+          const off = document.createElement('canvas');
+          off.width = vp.width; off.height = vp.height;
+          await entry.page.render({ canvasContext: off.getContext('2d'), viewport: vp }).promise;
+          const { data } = await tesseractWorker.recognize(off);
+          (data.words || []).forEach(word => {
+            activeCats.forEach(cat => {
+              const found = cat.match(word.text);
+              if(found.length){
+                const rectPt = { x: word.bbox.x0/scale, y: word.bbox.y0/scale, w: (word.bbox.x1-word.bbox.x0)/scale, h: (word.bbox.y1-word.bbox.y0)/scale };
+                addMatch(n, cat.id, rectPt, word.text, true);
+              }
+            });
+            if(wantCustom){
+              customPatterns.forEach(re => {
+                const r = new RegExp(re.source, re.flags);
+                if(r.test(word.text)){
+                  const rectPt = { x: word.bbox.x0/scale, y: word.bbox.y0/scale, w: (word.bbox.x1-word.bbox.x0)/scale, h: (word.bbox.y1-word.bbox.y0)/scale };
+                  addMatch(n, 'custom', rectPt, word.text, true);
+                }
+              });
+            }
+          });
+        }catch(e){ console.warn('OCR failed on page', n, e); }
+      }
+    }
+  }
+
+  state.scanned = true;
+  drawOverlayBoxes(state.currentPage);
+  renderMatchList();
+  updateThumbCounts();
+  $('#btnDetect').disabled = false;
+  $('#btnRedactSelected').disabled = state.matches.length === 0;
+  $('#btnRedactAll').disabled = state.matches.length === 0;
+  $('#btnFinalize').disabled = false;
+
+  if(wantSignatureNote){
+    toast('Signatures are not detected automatically \u2014 switch to Manual redaction mode to box them out.', 'warn');
+  }
+  const total = state.matches.length;
+  setStatus(total + ' potential match(es) found across ' + state.numPages + ' page(s). Review before redacting.', false);
+  toast(total + ' match(es) found. Review them in the "Review matches" panel.', total ? 'ok' : 'warn');
+}
+
+function addMatch(page, catId, rect, value, fromOcr){
+  // avoid near-duplicate boxes (e.g. same rect detected twice)
+  const dup = state.matches.find(m => m.page===page && m.category===catId &&
+    Math.abs(m.rect.x-rect.x) < 1 && Math.abs(m.rect.y-rect.y) < 1 && Math.abs(m.rect.w-rect.w) < 2);
+  if(dup) return;
+  state.matches.push({ id: uid(), page, category: catId, rect, value, selected:true, redacted:false, fromOcr: !!fromOcr });
+}
+
+async function loadTesseract(){
+  if(window.Tesseract){ return window.Tesseract.createWorker ? await getWorker() : window.Tesseract; }
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js';
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  return await getWorker();
+  async function getWorker(){
+    const worker = await Tesseract.createWorker('eng');
+    return worker;
+  }
+}
+
+/* ======================================================================
+   Match review list (right panel)
+   ====================================================================== */
+function renderMatchList(){
+  const list = $('#matchList');
+  const emptyMsg = $('#matchesEmpty');
+  list.innerHTML = '';
+  if(state.matches.length === 0){
+    emptyMsg.style.display = 'block';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+  state.matches
+    .slice()
+    .sort((a,b)=> a.page - b.page)
+    .forEach(m => {
+      const item = el('div', {class:'match-item' + (m.selected ? '' : ' unselected')});
+      const row1 = el('div', {class:'row1'});
+      const catSpan = el('span', {class:'cat', text: catLabel(m.category)});
+      catSpan.style.color = (CATEGORIES.find(c=>c.id===m.category)||{}).color || 'inherit';
+      row1.appendChild(catSpan);
+      row1.appendChild(el('span', {class:'page', text:'p.' + m.page + (m.fromOcr ? ' \u00b7 OCR' : '') + (m.redacted ? ' \u00b7 redacted' : '')}));
+      item.appendChild(row1);
+      item.appendChild(el('div', {class:'val', text: maskValue(m.value)}));
+      item.addEventListener('click', ()=>{
+        if(m.redacted) return;
+        m.selected = !m.selected;
+        renderMatchList();
+        if(state.currentPage !== m.page) renderPage(m.page); else drawOverlayBoxes(m.page);
+      });
+      list.appendChild(item);
+    });
+}
+function maskValue(v){
+  if(!v) return '';
+  if(v.length <= 4) return v;
+  return v.slice(0,2) + '\u2022'.repeat(Math.min(v.length-4, 10)) + v.slice(-2);
+}
+
+/* ======================================================================
+   Redact selected / all (burn boxes into the visible canvas immediately,
+   marking those matches as redacted so they can't be un-selected by
+   accident; the true permanent removal happens at Finalize.)
+   ====================================================================== */
+function redact(matchesToRedact){
+  if(matchesToRedact.length === 0){ toast('Nothing to redact.', 'warn'); return; }
+  matchesToRedact.forEach(m => { m.redacted = true; });
+  const pagesAffected = new Set(matchesToRedact.map(m=>m.page));
+  pagesAffected.forEach(n => { if(state.pages[n]) drawOverlayBoxes(n); });
+  renderMatchList();
+  updateThumbCounts();
+  toast(matchesToRedact.length + ' item(s) marked for permanent redaction on finalize.', 'ok');
+}
+$('#btnRedactSelected').addEventListener('click', () => {
+  redact(state.matches.filter(m => m.selected && !m.redacted));
+});
+$('#btnRedactAll').addEventListener('click', () => {
+  redact(state.matches.filter(m => !m.redacted));
+});
+
+/* ======================================================================
+   Finalize: rasterize every page with all redaction rects burned in as
+   solid black, rebuild a brand-new PDF from those images only (dropping
+   original text layer, hidden text, metadata, forms, attachments), then
+   run a verification pass, then offer download.
+   ====================================================================== */
+async function finalizeDocument(){
+  if(!state.pdfDoc) return;
+  const rectsByPage = {};
+  state.matches.filter(m => m.redacted).forEach(m => {
+    (rectsByPage[m.page] = rectsByPage[m.page] || []).push(m.rect);
+  });
+  state.manualBoxes.forEach(b => {
+    (rectsByPage[b.page] = rectsByPage[b.page] || []).push(b.rect);
+  });
+
+  const totalBoxes = Object.values(rectsByPage).reduce((a,arr)=>a+arr.length,0);
+  if(totalBoxes === 0){
+    const proceed = confirm('No areas are marked for redaction yet. Finalize anyway and export an unredacted, flattened copy?');
+    if(!proceed) return;
+  }
+
+  setStatus('Rasterizing and flattening pages\u2026', true);
+  $('#btnFinalize').disabled = true;
+  const RENDER_SCALE = 2.2; // px per pt in the exported raster; balances legibility and file size
+
+  const { PDFDocument } = PDFLib;
+  const outDoc = await PDFDocument.create();
+
+  for(let n = 1; n <= state.numPages; n++){
+    setStatus('Flattening page ' + n + ' of ' + state.numPages + '\u2026', true);
+    const entry = await ensurePageEntry(n);
+    const vp = entry.page.getViewport({ scale: RENDER_SCALE });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    const ctx = canvas.getContext('2d');
+    await entry.page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+    ctx.fillStyle = '#000000';
+    (rectsByPage[n] || []).forEach(r => {
+      ctx.fillRect(r.x * RENDER_SCALE, r.y * RENDER_SCALE, r.w * RENDER_SCALE, r.h * RENDER_SCALE);
+    });
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const pngBytes = await (await fetch(dataUrl)).arrayBuffer();
+    const png = await outDoc.embedPng(pngBytes);
+    const pageBaseVp = entry.baseViewport; // scale=1 -> page size in pt
+    const pdfPage = outDoc.addPage([pageBaseVp.width, pageBaseVp.height]);
+    pdfPage.drawImage(png, { x:0, y:0, width: pageBaseVp.width, height: pageBaseVp.height });
+  }
+
+  // New document: no title/author/keywords copied from the source, no attachments, no form fields.
+  outDoc.setTitle('');
+  outDoc.setAuthor('');
+  outDoc.setSubject('');
+  outDoc.setKeywords([]);
+  outDoc.setProducer('Confidential PDF Redaction Tool (local, offline)');
+  outDoc.setCreator('Confidential PDF Redaction Tool (local, offline)');
+
+  const outBytes = await outDoc.save();
+  state.finalizedBytes = outBytes;
+
+  setStatus('Verifying redaction\u2026', true);
+  const verification = await verifyRedaction(outBytes, rectsByPage);
+
+  const byCategory = {};
+  state.matches.filter(m=>m.redacted).forEach(m => { byCategory[m.category] = (byCategory[m.category]||0) + 1; });
+  const manualCount = state.manualBoxes.length;
+  state.auditLog = {
+    timestamp: new Date().toISOString(),
+    fileName: state.pdfBytesOriginalName,
+    pageCount: state.numPages,
+    pagesAffected: Object.keys(rectsByPage).length,
+    totalRedactions: totalBoxes,
+    byCategory,
+    manualCount,
+    verification,
+  };
+  renderAuditPane();
+  $('.rp-tabs [data-rp-tab="audit"]').click();
+
+  offerDownload(outBytes);
+  setStatus('Finalized. Redacted copy ready to download. Original file was not modified or retained.', false);
+  $('#btnFinalize').disabled = false;
+}
+
+async function verifyRedaction(outBytes, rectsByPage){
+  try{
+    const doc = await pdfjsLib.getDocument({ data: outBytes.slice(0) }).promise;
+    let totalChars = 0;
+    for(let n = 1; n <= doc.numPages; n++){
+      const p = await doc.getPage(n);
+      const tc = await p.getTextContent();
+      totalChars += tc.items.reduce((a,it)=>a+it.str.length, 0);
+    }
+    if(totalChars === 0){
+      return { ok:true, extractableChars:0,
+        message:'No extractable or searchable text was found anywhere in the exported PDF. Every page was rebuilt as a flattened image, so the original text layer, any prior OCR text layer, and the areas you redacted cannot be recovered by copy-paste or text search.' };
+    }
+    return { ok:false, extractableChars: totalChars,
+      message: 'Warning: the exported PDF still reports ' + totalChars + ' extractable character(s). This is unexpected for an image-flattened export \u2014 treat this file as unverified and inspect it manually (e.g. try selecting/copying text in a PDF reader) before sharing it.' };
+  }catch(e){
+    return { ok:false, extractableChars:null, message:'Verification could not run (' + e.message + '). Treat this export as unverified and inspect it manually before sharing.' };
+  }
+}
+
+function renderAuditPane(){
+  const wrap = $('#auditContent');
+  const empty = $('#auditEmpty');
+  if(!state.auditLog){ empty.style.display='block'; wrap.innerHTML=''; return; }
+  empty.style.display = 'none';
+  const a = state.auditLog;
+  wrap.innerHTML = '';
+
+  const verBox = el('div', {class: a.verification.ok ? 'verify-ok' : 'verify-warn'});
+  verBox.textContent = a.verification.message;
+  wrap.appendChild(verBox);
+
+  const summary = el('div', {class:'audit-box'});
+  summary.appendChild(el('h3', {text:'Redaction summary'}));
+  const rows = [
+    ['Processed at', new Date(a.timestamp).toLocaleString()],
+    ['Source file', a.fileName],
+    ['Total pages', String(a.pageCount)],
+    ['Pages with redactions', String(a.pagesAffected)],
+    ['Total redacted areas', String(a.totalRedactions)],
+    ['Manual boxes included', String(a.manualCount)],
+  ];
+  rows.forEach(([k,v]) => {
+    const r = el('div', {class:'audit-row'});
+    r.appendChild(el('span', {text:k}));
+    r.appendChild(el('span', {class:'n', text:v}));
+    summary.appendChild(r);
+  });
+  wrap.appendChild(summary);
+
+  const byCat = el('div', {class:'audit-box'});
+  byCat.appendChild(el('h3', {text:'By category'}));
+  const catIds = Object.keys(a.byCategory);
+  if(catIds.length === 0){
+    byCat.appendChild(el('div', {class:'audit-row', text:'No pattern-detected items were redacted (manual boxes only, or none).'}));
+  } else {
+    catIds.forEach(id => {
+      const r = el('div', {class:'audit-row'});
+      r.appendChild(el('span', {text: catLabel(id)}));
+      r.appendChild(el('span', {class:'n', text: String(a.byCategory[id])}));
+      byCat.appendChild(r);
+    });
+  }
+  wrap.appendChild(byCat);
+
+  const note = el('div', {class:'audit-box'});
+  note.appendChild(el('h3', {text:'Data handling'}));
+  const p1 = el('p', {text:'The original file and every value shown above existed only in this browser tab\u2019s memory during processing and are not written to disk, logged, or transmitted anywhere. Closing or reloading this page clears them.', style:'font-size:12px;color:var(--ink-soft);margin:0;'});
+  note.appendChild(p1);
+  wrap.appendChild(note);
+}
+
+function offerDownload(bytes){
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const baseName = (state.pdfBytesOriginalName || 'document.pdf').replace(/\.pdf$/i,'');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = baseName + '-redacted.pdf';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 30000);
+  toast('Redacted PDF downloaded: ' + a.download, 'ok');
+}
+
+/* ======================================================================
+   Toolbar wiring
+   ====================================================================== */
+$('#btnOpen').addEventListener('click', () => $('#fileInput').click());
+$('#btnOpen2').addEventListener('click', () => $('#fileInput').click());
+$('#fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const buf = await file.arrayBuffer();
+  loadPdfFromArrayBuffer(buf, file.name);
+});
+
+const dropZone = $('#dropZone');
+['dragenter','dragover'].forEach(evt => dropZone.addEventListener(evt, (e)=>{ e.preventDefault(); dropZone.classList.add('dragover'); }));
+['dragleave','drop'].forEach(evt => dropZone.addEventListener(evt, (e)=>{ e.preventDefault(); dropZone.classList.remove('dragover'); }));
+dropZone.addEventListener('drop', async (e) => {
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(!file) return;
+  if(file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
+    toast('Please drop a PDF file.', 'warn'); return;
+  }
+  const buf = await file.arrayBuffer();
+  loadPdfFromArrayBuffer(buf, file.name);
+});
+$('#canvasScroll').addEventListener('dragover', (e)=>{ if(!state.pdfDoc) return; e.preventDefault(); });
+$('#canvasScroll').addEventListener('drop', async (e)=>{
+  if(state.pdfDoc) return; // handled by dropZone while empty; ignore once a doc is open to avoid accidental replace
+});
+
+$('#btnPrev').addEventListener('click', () => renderPage(state.currentPage - 1));
+$('#btnNext').addEventListener('click', () => renderPage(state.currentPage + 1));
+$('#pageJump').addEventListener('change', (e) => {
+  const n = parseInt(e.target.value, 10);
+  if(!isNaN(n)) renderPage(n);
+});
+$('#btnZoomIn').addEventListener('click', () => { state.zoom = clamp(state.zoom + 0.15, 0.3, 4); applyZoom(); });
+$('#btnZoomOut').addEventListener('click', () => { state.zoom = clamp(state.zoom - 0.15, 0.3, 4); applyZoom(); });
+$('#btnFitWidth').addEventListener('click', () => {
+  const entry = state.pages[state.currentPage];
+  if(!entry) return;
+  const available = $('#canvasScroll').clientWidth - 52;
+  state.zoom = clamp(available / entry.baseViewport.width, 0.3, 4);
+  applyZoom();
+});
+function applyZoom(){
+  $('#zoomLabel').textContent = Math.round(state.zoom*100) + '%';
+  renderPage(state.currentPage);
+}
+
+$('#btnDetect').addEventListener('click', scanDocument);
+$('#btnManualMode').addEventListener('click', () => {
+  state.manualMode = !state.manualMode;
+  $('#btnManualMode').classList.toggle('active', state.manualMode);
+  drawOverlayBoxes(state.currentPage);
+  setStatus(state.manualMode ? 'Manual mode: click and drag on the page to draw a redaction box.' : 'Manual mode off.', false);
+});
+$('#btnFinalize').addEventListener('click', finalizeDocument);
+$('#btnClearAll').addEventListener('click', () => { $all('#categoryList input[type=checkbox]').forEach(cb=>cb.checked=false); });
+
+/* ======================================================================
+   Modal + tab wiring
+   ====================================================================== */
+$('#btnPrivacy').addEventListener('click', () => openModal('privacyModal'));
+$('#btnHelp').addEventListener('click', () => openModal('helpModal'));
+wireTabs('.sidebar-tabs button', { detect: $('#paneDetect'), pages: $('#panePages') });
+wireTabs('.rp-tabs button', { matches: $('#paneMatches'), audit: $('#paneAudit') });
+
+/* ======================================================================
+   Boot: load pdf.js worker, then reveal the app
+   ====================================================================== */
+window.addEventListener('DOMContentLoaded', () => {
+  buildCategoryList();
+  if(window['pdfjs-dist/build/pdf']){
+    pdfjsLib = window['pdfjs-dist/build/pdf'];
+  } else if(window.pdfjsLib){
+    pdfjsLib = window.pdfjsLib;
+  }
+  if(pdfjsLib){
+    try{
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }catch(e){}
+    setStatus('Ready. Open a PDF to begin \u2014 processing happens entirely in this browser tab.', false);
+  } else {
+    setStatus('PDF engine failed to load. Check your internet connection for this first-time script load, then reload the page.', false);
+    toast('Could not load the PDF engine (pdf.js) from the CDN. An internet connection is needed the first time this page loads its scripts; after that, redaction itself still runs fully offline on your device.', 'err');
+  }
+  if(typeof PDFLib === 'undefined'){
+    toast('Could not load the PDF export library (pdf-lib). Downloading finalized files will not work until this script is reachable.', 'warn');
+  }
+});
+
+})();
+</script>
+</body>
+</html>
